@@ -19,6 +19,8 @@
 #include "irods_string_tokenize.hpp"
 #include "irods_hierarchy_parser.hpp"
 #include "irods_error.hpp"
+#include "irods_kvp_string_parser.hpp"
+#include "irods_resource_redirect.hpp"
 
 // =-=-=-=-=-=-=-
 // stl includes
@@ -26,6 +28,7 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <boost/lexical_cast.hpp>
 
 // =-=-=-=-=-=-=-
 // system includes
@@ -63,7 +66,8 @@
 #include <string.h>
 
 
-
+const std::string WRITE_WEIGHT_KW( "write" );
+const std::string READ_WEIGHT_KW( "read" );
 
 
 extern "C" {
@@ -716,17 +720,58 @@ extern "C" {
             return PASSMSG( "weighted_passthru_redirect_plugin - failed getting the first child resource pointer.", ret );
         }
 
-        return resc->call < const std::string*,
-               const std::string*,
-               irods::hierarchy_parser*,
-               float* > (
-                   _ctx.comm(),
-                   irods::RESOURCE_OP_RESOLVE_RESC_HIER,
-                   _ctx.fco(),
-                   _opr,
-                   _curr_host,
-                   _out_parser,
-                   _out_vote );
+        irods::error final_ret = resc->call < 
+                                    const std::string*,
+                                    const std::string*,
+                                    irods::hierarchy_parser*,
+                                    float* > (
+                                        _ctx.comm(),
+                                        irods::RESOURCE_OP_RESOLVE_RESC_HIER,
+                                        _ctx.fco(),
+                                        _opr,
+                                        _curr_host,
+                                        _out_parser,
+                                        _out_vote );
+       double orig_vote = *_out_vote;
+       if( irods::OPEN_OPERATION == ( *_opr ) && 
+            _ctx.prop_map().has_entry( READ_WEIGHT_KW ) ) {
+           double read_weight = 1.0;
+           ret = _ctx.prop_map().get<double>( 
+                     READ_WEIGHT_KW,
+                     read_weight );
+           if( !ret.ok() ) {
+               irods::log( PASS( ret ) );
+           
+           } else {
+               (*_out_vote) *= read_weight;
+
+           }
+
+       }
+       else if( ( irods::CREATE_OPERATION == ( *_opr ) ||
+                  irods::WRITE_OPERATION == ( *_opr ) ) &&
+            _ctx.prop_map().has_entry( WRITE_WEIGHT_KW ) ) {
+           double write_weight = 1.0;
+           ret = _ctx.prop_map().get<double>( 
+                     WRITE_WEIGHT_KW,
+                     write_weight );
+           if( !ret.ok() ) {
+               irods::log( PASS( ret ) );
+           
+           } else {
+               (*_out_vote) *= write_weight;
+
+           }
+       }
+
+       rodsLog( 
+           LOG_DEBUG,
+           "weighted_passthru_redirect_plugin - [%s] : %f - %f", 
+           _opr->c_str(),
+           orig_vote,
+           *_out_vote );
+
+       return final_ret;
 
     } // weighted_passthru_redirect_plugin
 
@@ -798,6 +843,50 @@ extern "C" {
                 irods::resource(
                     _inst_name,
                     _context ) {
+                irods::kvp_map_t kvp_map;
+                if( !_context.empty() ) {
+                    irods::error ret = irods::parse_kvp_string(
+                                           _context,
+                                           kvp_map );
+                    if( !ret.ok() ) {
+                        irods::log( PASS( ret ) );
+
+                    }
+
+                    if( kvp_map.find( WRITE_WEIGHT_KW ) != kvp_map.end() ) {
+                        try {
+                            double write_weight = boost::lexical_cast< double >( kvp_map[ WRITE_WEIGHT_KW ] );
+                            properties_.set< double >( WRITE_WEIGHT_KW, write_weight );
+                        } catch ( const boost::bad_lexical_cast& ) {
+                            std::stringstream msg;
+                            msg << "failed to cast weight for write ["
+                                << kvp_map[ WRITE_WEIGHT_KW ]
+                                << "]";
+                            irods::log( 
+                                ERROR( 
+                                    SYS_INVALID_INPUT_PARAM,
+                                    msg.str() ) );
+                        }
+                    }
+
+                    if( kvp_map.find( READ_WEIGHT_KW ) != kvp_map.end() ) {
+                        try {
+                            double read_weight = boost::lexical_cast< double >( kvp_map[ READ_WEIGHT_KW ] );
+                            properties_.set< double >( READ_WEIGHT_KW, read_weight );
+                        } catch ( const boost::bad_lexical_cast& ) {
+                            std::stringstream msg;
+                            msg << "failed to cast weight for read ["
+                                << kvp_map[ READ_WEIGHT_KW ]
+                                << "]";
+                            irods::log( 
+                                ERROR( 
+                                    SYS_INVALID_INPUT_PARAM,
+                                    msg.str() ) );
+                        }
+                    }
+
+                } // if !empty
+
             } // ctor
 
     }; // class passthru_resource

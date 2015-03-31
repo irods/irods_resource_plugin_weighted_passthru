@@ -4,7 +4,7 @@ SRCS = libirods_weighted_passthru.cpp
 
 HEADERS = libirods_weighted_passthru.hpp
 
-EXTRALIBS = /usr/lib/irods/libirods_client.a /usr/lib/irods/libweighted_passthru.a
+EXTRALIBS = /usr/lib/irods/libirods_client.a
 
 EXTRAINCS = 
 
@@ -22,7 +22,7 @@ DEPFILE = .depends
 OBJS = $(patsubst %.cpp, ${OBJDIR}/%.o, ${SRCS})
 DEPS = $(patsubst %.cpp, ${DEPDIR}/%.d, ${SRCS})
 
-GCC = g++ -DRODS_SERVER -DZIP_EXEC_PATH=\"$(ZIP_EXEC_PATH)\" -DUNZIP_EXEC_PATH=\"$(UNZIP_EXEC_PATH)\"
+GCC = g++ -DRODS_SERVER
 
 INC = -I/usr/include/irods -I/usr/include/openssl ${EXTRAINCS}
 
