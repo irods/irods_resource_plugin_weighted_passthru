@@ -1,0 +1,7 @@
+*~
+TAGS
+lib*.so
+.filelist
+*/.depends
+*/.deps
+*/.objs

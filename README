@@ -1,0 +1,30 @@
+iRODS Weighted Passthru Resource Plugin
+---------------------------------------
+
+To build the Weighted Passthru Resource Plugin, you will need to have:
+
+ - the iRODS Development Tools (irods-dev and irods-runtime) installed for your platform
+     http://irods.org/download
+
+Then to build this resource plugin:
+
+  ./packaging/build.sh
+
+
+To use this resource plugin:
+
+  irods@hostname $ iadmin mkresc replResc replication
+  irods@hostname $ iadmin mkresc weightedPTResc weighted_passthru "read=0.25;write=1.0"
+  irods@hostname $ iadmin mkresc aChildResc unixfilesystem <hostname>:/full/path/to/Vault1
+  irods@hostname $ iadmin mkresc writeOnlyResc unixfilesystem <hostname>:/full/path/to/Vault2
+  irods@hostname $ iadmin addchildtoresc replResc aChildResc
+  irods@hostname $ iadmin addchildtoresc replResc writeOnlyResc
+  irods@hostname $ iadmin addchildtoresc weightedPTResc writeOnlyResc
+  irods@hostname $ iput -R replResc foo.txt
+
+
+The contextString above ("read=0.25;write=1.0") when creating weightedPTResc
+contains a set of multipliers that affect the votes of its children.  During
+a read, the weightedPTResc will multiply its child's vote by 0.25, rendering
+it nearly always a last resort.  On a write, the 1.0 multiplier will have no
+effect on the selection of which resources are eligible for accepting the replica.
